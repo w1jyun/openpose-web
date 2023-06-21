@@ -33,7 +33,7 @@ async function fileOpenLegacy<M extends boolean | undefined = false>(
             ...options.map((option) => option.mimeTypes || []),
             ...options.map((option) => option.extensions || []),
         ].join()
-        input.multiple = options[0].multiple || false
+        input.multiple = true
         // Empty string allows everything.
         input.accept = accept || ''
         // Append to the DOM, else Safari on iOS won't fire the `change` event
@@ -124,32 +124,24 @@ export async function uploadImage() {
     try {
         const file = await fileOpenLegacy({
             mimeTypes: ['image/*'],
-            legacySetup: (_, rejectionHandler) => {
-                const timeoutId = setTimeout(rejectionHandler, 10_000)
-                return (reject) => {
-                    clearTimeout(timeoutId)
-                    console.log('reject')
-                    if (reject) {
-                        reject('Open file timeout')
+        })
+
+        return new Promise((resolve, reject) => {
+            const urls: string[] = []
+            setTimeout(() => {
+                const arr = (file as FileWithHandle[])
+                for (const data of arr) {
+                    const reader = new FileReader()
+                    reader.onload = function () {
+                        console.log('load', urls.length)
+                        urls.push(reader.result as string)
                     }
+                    reader.readAsDataURL(data)
                 }
-            },
-        })
+                setTimeout(() => { resolve(urls)}, 1000);
+            }, 0);
 
-        return await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = function () {
-                resolve(reader.result as string)
-            }
-
-            reader.onerror = function () {
-                reject(reader.error)
-            }
-
-            if (Array.isArray(file) == false)
-                reader.readAsDataURL(file as FileWithHandle)
-            else reject("Don't select multiple files")
-        })
+        });
     } catch (error) {
         console.log(error)
         return null

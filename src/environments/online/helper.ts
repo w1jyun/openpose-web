@@ -21,48 +21,60 @@ export class Helper {
     constructor(editor: BodyEditor) {
         this.editor = editor
     }
+    async detect(dataUrl: [], i: number) {
+        const image = document.createElement('img')
+        console.log(`images/${i}.png`)
+        image.src = dataUrl[i]
+
+        const result = await DetectPosefromImage(image)
+
+        if (result) {
+            if (!result.poseWorldLandmarks)
+                throw new Error(JSON.stringify(result))
+
+            const positions: [number, number, number][] =
+                result.poseWorldLandmarks.map(({ x, y, z }) => [
+                    x * 100,
+                    -y * 100,
+                    -z * 100,
+                ])
+
+            // this.drawPoseData(
+            //     result.poseWorldLandmarks.map(({ x, y, z }) =>
+            //         new THREE.Vector3().fromArray([x * 100, -y * 100, -z * 100])
+            //     )
+            // )
+
+            await this.editor.SetBlazePose(positions)
+            this.editor.SaveImage(`${i}`)
+            if (i==310) return
+            setTimeout(() => this.detect(dataUrl, i+1), 1000)
+        }
+    }
 
     async DetectFromImage(onChangeBackground: (url: string) => void) {
+        console.log('DetectFromImage')
+
         const body = await this.editor.GetBodyToSetPose()
+        console.log('body')
         if (!body) {
             ShowToast({ title: i18n.t('Please select a skeleton!!') })
             return
         }
 
         const loading = GetLoading(500)
-
+        console.log('GetLoading')
         try {
             const dataUrl = await uploadImage()
-
+            console.log('dataUrl', dataUrl)
             if (!dataUrl) return
-
-            const image = await getImage(dataUrl)
-            onChangeBackground(dataUrl)
-
+            console.log('loading')
             loading.show({ title: i18n.t('Downloading MediaPipe Pose Model') })
-            const result = await DetectPosefromImage(image)
             loading.hide()
-
-            if (result) {
-                if (!result.poseWorldLandmarks)
-                    throw new Error(JSON.stringify(result))
-
-                const positions: [number, number, number][] =
-                    result.poseWorldLandmarks.map(({ x, y, z }) => [
-                        x * 100,
-                        -y * 100,
-                        -z * 100,
-                    ])
-
-                // this.drawPoseData(
-                //     result.poseWorldLandmarks.map(({ x, y, z }) =>
-                //         new THREE.Vector3().fromArray([x * 100, -y * 100, -z * 100])
-                //     )
-                // )
-
-                await this.editor.SetBlazePose(positions)
-                return
-            }
+            this.detect(dataUrl as [], 0)
+            // setTimeout(()=>{}, 10000);
+            // const image = await getImage(dataUrl)
+            // onChangeBackground(dataUrl)
         } catch (error) {
             loading.hide()
 

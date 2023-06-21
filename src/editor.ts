@@ -13,13 +13,8 @@ import {
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls'
+import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter'
 
-// @ts-ignore
-// import {
-//     CCDIKHelper,
-//     CCDIKSolver,
-//     IKS,
-// } from 'three/examples/jsm/animate/CCDIKSolver'
 import { CCDIKSolver } from './utils/CCDIKSolver'
 import Stats from 'three/examples/jsm/libs/stats.module'
 import {
@@ -51,6 +46,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils'
 import { Oops } from './components/Oops'
 import { getCurrentTime } from './utils/time'
 import { sendToAll } from './hooks/useMessageDispatch'
+import { randFloat } from 'three/src/math/MathUtils'
 
 type EditorEventHandler<T> = (args: T) => void
 
@@ -121,7 +117,7 @@ export interface ParentElement {
     ): void
 }
 
-class PreviewRenderer {
+export class PreviewRenderer {
     scene: THREE.Scene
     camera: THREE.PerspectiveCamera
     canvas?: HTMLCanvasElement
@@ -197,7 +193,6 @@ class PreviewRenderer {
     changeView(cameraDataOfView?: CameraData) {
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         if (!cameraDataOfView) return () => {}
-
         const old = this.GetCameraData()
         this.RestoreCamera(cameraDataOfView, false)
         return () => {
@@ -220,6 +215,68 @@ class PreviewRenderer {
     }
 }
 
+const tumbleCamera = ({ perspCamSceneElement, azimuth, zenith }: {
+    perspCamSceneElement:THREE.PerspectiveCamera, azimuth: number, zenith: number,
+  }) => {
+  
+    // 1. calculate position, di`1rection (local Z), up (local Y), right (local X), and cameraToFocus
+    const cameraPosition = new THREE.Vector3();
+    const cameraDirection = new THREE.Vector3();
+    const cameraUp = new THREE.Vector3();
+    const cameraRight = new THREE.Vector3();
+    const cameraToFocus = new THREE.Vector3();
+  
+    // position
+    perspCamSceneElement.getWorldPosition(cameraPosition);
+    // direction
+    perspCamSceneElement.getWorldDirection(cameraDirection);
+    // up
+    const localUpEnd = new THREE.Vector3();
+    localUpEnd.copy(perspCamSceneElement.up); // copy local up (usually (0, 1, 0))
+    const worldUpEnd = perspCamSceneElement.localToWorld(localUpEnd); // get end position of up vector in world
+    cameraUp.subVectors(worldUpEnd, cameraPosition).normalize(); // end position - camera position = up vector in world
+  
+    // right
+    cameraRight.crossVectors(cameraDirection, cameraUp).normalize(); // direction (cross) up = right
+  
+    // camera to focus
+    cameraToFocus.subVectors(new THREE.Vector3(), cameraPosition); // focus position - camera position
+  
+    // 2. move camera to focus along up (Y) and right (X) axes
+    // calculate amount of shift from center to focus along up and right axes
+    const shiftRight = cameraToFocus.dot(cameraRight);
+    const shiftUp = cameraToFocus.dot(cameraUp);
+  
+    // translate camera to aim focus
+    perspCamSceneElement.translateX(shiftRight); // move to focus horizontally
+    perspCamSceneElement.translateY(shiftUp); // move to focus vertically
+  
+    // 3. move camera to focus along direction(local Z) axis
+    // calculate amount of shift from shifted camera (in step 2) to focus
+    const shiftedCameraPosition = new THREE.Vector3();
+    perspCamSceneElement.getWorldPosition(shiftedCameraPosition);
+    const shiftedCameraToFocus = new THREE.Vector3();
+    shiftedCameraToFocus.subVectors(new THREE.Vector3(), shiftedCameraPosition);
+    const shiftDirection = shiftedCameraToFocus.length();
+  
+    // translate camera to focus
+    perspCamSceneElement.translateZ(-shiftDirection); // move to focus
+  
+    // 4. rotate camera around axes
+    perspCamSceneElement.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), azimuth); // azimuth: rotate along global Y axis
+    perspCamSceneElement.rotateX(zenith); // zenith: rotate along right (local X) axis
+  
+    // 5. move camera 'back' from focus along all (Z, Y, X) axes
+    perspCamSceneElement.translateZ(shiftDirection); // move back from focus
+    perspCamSceneElement.translateY(-shiftUp); // move back from focus vertically
+    perspCamSceneElement.translateX(-shiftRight); // move back from focus horizontally
+  
+  
+    if (!perspCamSceneElement.matrixAutoUpdate) perspCamSceneElement.updateMatrix();
+    perspCamSceneElement.updateMatrixWorld(true);
+  };
+
+  
 export class BodyEditor {
     renderer: THREE.WebGLRenderer
     outputRenderer: THREE.WebGLRenderer
@@ -1168,7 +1225,130 @@ export class BodyEditor {
             this.gridHelper.visible = old.gridHelper
         }
     }
-    MakeImages() {
+    async tumble({ currStep, perspCamSceneElement, azimuth, zenith, filename }:
+        { currStep: number, perspCamSceneElement: THREE.PerspectiveCamera, azimuth: number, zenith: number, filename: string[] }) {
+        if (currStep > 40) return
+        tumbleCamera({ perspCamSceneElement, azimuth, zenith })
+        const link = document.createElement('a');
+        document.body.appendChild(link);
+        link.style.display = 'none';
+
+        const pos = this.camera.position.clone();
+        let str = ''
+        if(pos.z > -1 && pos.z < 1) {
+            str += pos.x > 0 ? 'right side ': 'left side';
+        }
+        else if(pos.z > 1) {
+            str += 'front ';
+        }
+        else if(pos.z < -1){
+            str += 'back ';
+        }
+
+        if (pos.y < -1) str += 'bottom ';
+        else if (pos.y > 1) str += 'overhead ';
+        console.log(str)
+        // console.log(pos.x, pos.y, pos.z)
+
+        const matrixWorld = this.camera.matrixWorld.clone();
+        console.log(matrixWorld)
+        let name = `p`
+        for(let i =0; i < 16; i++){
+            name += '_'
+            const r = Math.round(matrixWorld.elements[i] * 1000) / 1000;
+            name += r;
+        }
+        // filename.push(name)
+        name += '.png'
+        console.log('name', name)
+        link.download = name;
+        link.href = this.Capture();
+        link.click();
+        setTimeout(async () =>{
+            await this.tumble({ currStep: currStep + 1, perspCamSceneElement: this.camera, azimuth, zenith, filename })
+        }, 100)
+    }
+
+    async SaveImage(name: string) {
+        this.renderer.setClearColor(0x000000)
+        const restoreHelper = this.changeHelper()
+        // this.previewRenderer
+        const restoreTransfromControl = this.changeTransformControl()
+        const restoreView = this.changeView()
+
+        const poseImage = this.Capture()
+
+        const aspect = window.innerWidth / window.innerHeight
+        const body = this.GetBodies()
+        const mtx = body[0].matrix.clone()
+        const inv = new THREE.Matrix4().copy(mtx.clone().invert())
+        // body[0].applyMatrix4(inv)
+        // body[0].translateY(115)
+        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000)
+        this.camera.position.set(0, 100, 200)
+        this.camera.lookAt(0, 100, 0)
+
+        // this.camera.position.set(0, 0, 0)
+        // this.camera.lookAt(0, 0, -200)
+        // mtx.elements[7] = 0
+        // mtx.elements[11] = 0
+        // body[0].applyMatrix4(mtx)
+        // body[0].translateY(100)
+        // body[0].translateZ(200)
+        // this.camera.updateProjectionMatrix()
+        
+        // this.camera.quaternion.copy( quaternion );
+        // console.log(this.camera.clone())
+        // this.camera.translateZ(200)
+        // const rotate = new THREE.Matrix4().lookAt( this.camera.position, new THREE.Vector3(0, 115, 0), new THREE.Vector3(0, 1, 0) );
+        // this.camera.applyQuaternion(new THREE.Quaternion().setFromRotationMatrix(rotate))
+        // console.log(rotate.clone(), this.camera.quaternion.clone(), quaternion)
+        // this.camera.applyQuaternion(quaternion)
+
+        const link = document.createElement('a');
+        document.body.appendChild(link);
+        link.style.display = 'none';
+        const matrix = this.camera.matrix.clone();
+        let filename = 'pose' + name;
+        for(let i =0; i < 16; i++){
+            filename += '_'
+            filename += matrix.elements[i] < 0.00000001  && matrix.elements[i] > -0.00000001 ? 0 : matrix.elements[i];
+        }
+        filename += '.png'
+        link.download = filename;
+        link.href = this.Capture();
+        link.click();
+
+        const map = this.hideSkeleten()
+        const depthImage = this.CaptureDepth()
+        const normalImage = this.CaptureNormal()
+        const cannyImage = this.CaptureCanny()
+        this.showSkeleten(map)
+
+        restoreHelper()
+
+        restoreTransfromControl()
+        restoreView()
+
+        const result = {
+            pose: poseImage,
+            depth: depthImage,
+            normal: normalImage,
+            canny: cannyImage,
+        }
+
+        sendToAll({
+            method: 'MakeImages',
+            type: 'event',
+            payload: result,
+        })
+
+        // this.SaveScene(name)
+        return result
+    }
+
+    async MakeImages() {
+        console.log('MakeImages')
         this.renderer.setClearColor(0x000000)
 
         const restoreHelper = this.changeHelper()
@@ -1178,7 +1358,41 @@ export class BodyEditor {
 
         const poseImage = this.Capture()
 
+        const currStep = 0
+        const unitAngle = (Math.PI * 2) / 12;
+
+        console.log(this.camera.clone())
         /// begin
+        const bBox = new THREE.Box3();
+        this.GetBodies().forEach(b => {
+            console.log(b.position.clone())
+            b.position.set(0,0,0);
+            b.scale.set(0.01, 0.01, 0.01)
+            console.log('body', b.clone())
+            bBox.expandByObject(b)
+        });
+
+        console.log('bBox', bBox.max.sub(bBox.min))
+        
+        const aspect = window.innerWidth / window.innerHeight
+        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000)
+        this.camera.position.set(0, 0.2, 0.64)
+        this.camera.lookAt(0, 0.25, 0)
+        this.camera.matrix.copy(new THREE.Matrix4())
+        this.camera.updateProjectionMatrix()
+        const filename:string[] = []
+        await this.tumble({ currStep, perspCamSceneElement: this.camera, azimuth: unitAngle, zenith: -unitAngle / 20, filename })
+        // setTimeout(async ()=>{
+        //     this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000)
+        //     this.camera.position.set(0, 0, 0.5)
+        //     this.camera.lookAt(0, 1.2, 0)
+        //     this.camera.matrix.copy(new THREE.Matrix4())
+        //     this.camera.updateProjectionMatrix()
+        //     await this.tumble({ currStep, perspCamSceneElement: this.camera, azimuth: unitAngle, zenith: unitAngle / 20, filename })
+        //     setTimeout(async ()=>{
+        //         console.log(...filename)
+        //     }, 10000);
+        // }, 10000)
         const map = this.hideSkeleten()
         const depthImage = this.CaptureDepth()
         const normalImage = this.CaptureNormal()
@@ -1187,10 +1401,10 @@ export class BodyEditor {
         /// end
 
         this.renderer.setClearColor(0x000000, 0)
-        restoreHelper()
+        // restoreHelper()
 
-        restoreTransfromControl()
-        restoreView()
+        // restoreTransfromControl()
+        // restoreView()
 
         const result = {
             pose: poseImage,
@@ -1216,7 +1430,6 @@ export class BodyEditor {
 
         const body =
             list.length === 0 ? CloneBody() : SkeletonUtils.clone(selectedBody!)
-
         if (!body) return
 
         this.pushCommand(this.CreateAddBodyCommand(body))
@@ -1544,8 +1757,6 @@ void main() {
         )
 
         const data = {
-            header: 'Openpose Editor by Yu Zhu',
-            version: __APP_VERSION__,
             object: {
                 bodies: bodies,
                 camera: this.GetCameraData(),
@@ -1591,11 +1802,11 @@ void main() {
         }
     }
 
-    SaveScene() {
+    SaveScene(name?: string) {
         try {
             downloadJson(
                 JSON.stringify(this.GetSceneData()),
-                `scene_${getCurrentTime()}.json`
+                `scene_${name ?? 0}.json`
             )
         } catch (error) {
             console.error(error)
@@ -1621,10 +1832,10 @@ void main() {
             handData
         )
     }
-    SaveGesture() {
+    SaveGesture(i?: string) {
         const data = this.GetGesture()
         if (!data) throw new Error('Failed to get gesture')
-        downloadJson(JSON.stringify(data), `gesture_${getCurrentTime()}.json`)
+        downloadJson(JSON.stringify(data), `gesture_${i ?? 0}.json`)
     }
 
     ClearScene() {
