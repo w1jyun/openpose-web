@@ -45,7 +45,8 @@
     "tsx": "^3.12.5",
     "type-fest": "^3.6.1",
     "vite-plugin-pwa": "^0.14.4",
-    "workbox-window": "^6.5.4"
+    "workbox-window": "^6.5.4",
+    "yarn": "^1.22.19"
   },
   "devDependencies": {
     "@types/dat.gui": "^0.7.7",

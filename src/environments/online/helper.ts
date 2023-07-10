@@ -30,7 +30,8 @@ export class Helper {
 
         if (result) {
             if (!result.poseWorldLandmarks)
-                throw new Error(JSON.stringify(result))
+                return
+                // throw new Error(JSON.stringify(result))
 
             const positions: [number, number, number][] =
                 result.poseWorldLandmarks.map(({ x, y, z }) => [
