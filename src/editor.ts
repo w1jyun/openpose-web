@@ -4151,7 +4151,7 @@ export class BodyEditor {
             name += '.png'
             link.download = name;
             link.href = this.Capture();
-            link.click();
+            // link.click();
             if (currStep === long_random.length - 1) clearInterval(id);
         }, 100)
         // const matrixWorld = this.camera.matrixWorld.clone();
@@ -4267,7 +4267,6 @@ export class BodyEditor {
 
         const poseImage = this.Capture()
 
-        let currStep = 0
         const unitAngle = (Math.PI * 2) / 100;
 
         console.log(this.camera.clone())
@@ -4277,15 +4276,121 @@ export class BodyEditor {
             b.position.set(0,0.2,0);
             b.scale.set(0.008, 0.008, 0.008)
             bBox.expandByObject(b)
+            console.log('GetBodies', b)
         });
-        console.log(bBox)
-        
+
+
         const link = document.createElement('a');
         document.body.appendChild(link);
         link.style.display = 'none';
 
+        const partMap:[string, THREE.Vector3][] = []
+
+        this.scene.traverse((o) => {
+            // head shot
+            if(o.name === 'neck'){
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['headshot', new THREE.Vector3(position.x, position.y+0.1, position.z)])
+            }
+
+            // left arm
+            else if(o.name === 'left_elbow'){
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['left arm', position.clone()])
+            }
+
+            // right arm
+            else if(o.name === 'right_elbow'){
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['right arm', position.clone()])
+            }
+
+            // right leg
+            else if(o.name === 'right_knee'){
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['right leg', position.clone()])
+            }
+
+            // left leg
+            else if(o.name === 'left_knee'){
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['left leg', position.clone()])
+            }
+
+            // left hand
+            else if(o.name === 'left_wrist'){
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['left hand', position.clone()])
+            }
+
+            // right hand
+            else if(o.name === 'right_wrist') {
+                const position = new THREE.Vector3()
+                o.getWorldPosition(position)
+                partMap.push(['right hand', position.clone()])
+            }
+        })
+
         const aspect = window.innerWidth / window.innerHeight
         this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000)
+        
+        // partMap.forEach(([part, position], index) => {
+        //     setTimeout(()=>{
+        //         for(let i = 0; i < 20; i+=1){
+        //             setTimeout(()=>{
+        //                 let name = part
+        //                 const r = Math.random() * 0.2 + 0.3
+        //                 this.camera.position.set(position.x, position.y, position.z + r);
+        //                 this.camera.lookAt(position.x, position.y, position.z);
+        //                 this.camera.updateMatrixWorld();
+        //                 const v = this.camera.matrixWorldInverse.toArray();
+        //                 for(let i =0; i < 16; i++){
+        //                     name += '_'
+        //                     const r = v[i].toPrecision(4);
+        //                     name += r;
+        //                 }
+        //                 name += '.png'
+        //                 link.download = name;
+        //                 link.href = this.Capture();
+        //                 link.click();
+        //             }, i * 200);
+        //         }
+        //     }, index * 4000)
+        // });
+        
+
+
+        let currStep = 0;
+        setTimeout(()=>{
+            const id = setInterval(async () =>{
+                const v = circle_pose2[currStep];
+                this.camera.matrixWorld.set(...v)
+                this.camera.matrixAutoUpdate = false;
+                currStep++;
+                let name = String(currStep-1).padStart(3, "0")
+                for(let i =0; i < 16; i++){
+                    name += '_'
+                    const r = v[i];
+                    name += r;
+                }
+                name += '.png'
+                link.download = name;
+                link.href = this.Capture();
+                link.click();
+                if (currStep === 350) clearInterval(id);
+            }, 200)
+        }, 0)
+
+
+
+        // const aspect = window.innerWidth / window.innerHeight
+        // this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000)
         // // head
         // const id = setInterval(async () =>{
         //     const y = Math.ceil((Math.random() * 0.5 + 0.2) * 1000) / 1000
@@ -4310,18 +4415,18 @@ export class BodyEditor {
         // }, 100)
 
         // right arm
-        this.camera.position.set(0.2, 0.2, 0.5)
-        this.camera.lookAt(0.2, 0.2, 0)
-        this.camera.matrix.copy(new THREE.Matrix4())
-        this.camera.updateProjectionMatrix()
-        console.log(this.camera.matrixWorld.clone())
+        // this.camera.position.set(0.2, 0.2, 0.5)
+        // this.camera.lookAt(0.2, 0.2, 0)
+        // this.camera.matrix.copy(new THREE.Matrix4())
+        // this.camera.updateProjectionMatrix()
+        // console.log(this.camera.matrixWorld.clone())
 
-        // left arm
-        this.camera.position.set(-0.2, 0.2, 0.5)
-        this.camera.lookAt(-0.2, 0.2, 0)
-        this.camera.matrix.copy(new THREE.Matrix4())
-        this.camera.updateProjectionMatrix()
-        console.log(this.camera.matrixWorld.clone())
+        // // left arm
+        // this.camera.position.set(-0.2, 0.2, 0.5)
+        // this.camera.lookAt(-0.2, 0.2, 0)
+        // this.camera.matrix.copy(new THREE.Matrix4())
+        // this.camera.updateProjectionMatrix()
+        // console.log(this.camera.matrixWorld.clone())
 
         const filename:string[] = []
         // await this.tumble({ currStep, perspCamSceneElement: this.camera, azimuth: unitAngle, zenith: -unitAngle / 100, filename })
