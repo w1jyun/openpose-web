@@ -333,6 +333,17 @@ export function IsVirtualPoint(name: string) {
     ].includes(name)
 }
 
+export function IsNeedToRender(name:string) {
+    if (OpenposeKeypoints.includes(name)) return true
+    if (name === 'right_hand' || name === 'left_hand') return true
+    if (name === 'right_foot' || name === 'left_foot') return true
+    if (IsVirtualPoint(name)) return true // virtual point
+    if (IsBone(name)) return true
+    if (name.includes('_joint_sphere')) return true
+    if (name.includes('_link_')) return true
+    return false
+}
+
 export function IsNeedSaveObject(name: string) {
     if (OpenposeKeypoints.includes(name)) return true
     if (name === 'right_hand' || name === 'left_hand') return true

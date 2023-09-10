@@ -41,7 +41,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "rollup-plugin-visualizer": "^5.9.0",
-    "three": "^0.150.1",
+    "three": "^0.156.1",
     "tsx": "^3.12.5",
     "type-fest": "^3.6.1",
     "vite-plugin-pwa": "^0.14.4",

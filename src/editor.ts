@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+
 import {
     Bone,
     Material,
@@ -13,6 +14,7 @@ import {
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls'
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter'
 
 import { CCDIKSolver } from './utils/CCDIKSolver'
@@ -27,6 +29,7 @@ import {
     IsFoot,
     IsHand,
     IsMask,
+    IsNeedToRender,
     IsNeedSaveObject,
     IsPickable,
     IsSkeleton,
@@ -4226,7 +4229,7 @@ export class BodyEditor {
         filename += '.png'
         link.download = filename;
         link.href = this.Capture();
-        link.click();
+        // link.click();
 
         const map = this.hideSkeleten()
         const depthImage = this.CaptureDepth()
@@ -4269,17 +4272,48 @@ export class BodyEditor {
 
         const unitAngle = (Math.PI * 2) / 100;
 
-        console.log(this.camera.clone())
         /// begin
         const bBox = new THREE.Box3();
         this.GetBodies().forEach(b => {
             b.position.set(0,0.2,0);
             b.scale.set(0.008, 0.008, 0.008)
             bBox.expandByObject(b)
-            console.log('GetBodies', b)
         });
 
+        const body = this.GetBodies()
+        this.scene.traverse((o) => {
+            // if(IsNeedToRender(o.name)) o.visible = false;
+            if(o.name.endsWith('_target') || ['left_foot', 'right_foot', 'left_hand', 'right_hand', 'center'].includes(o.name))
+                o.visible = false;
+        });
+        
+        console.log('bodybodybodybodybodybody', body)
+        const exporter = new GLTFExporter();
 
+        function saveString( text, filename ) {
+			link.href = URL.createObjectURL( new Blob( [ text ], { type: 'text/plain' } ), filename );
+			link.download = filename;
+			link.click();
+        }
+        // Parse the input and generate the glTF output
+        exporter.parse(
+            this.GetBodies(),
+            // called when the gltf has been generated
+            function ( gltf ) {
+
+                const output = JSON.stringify( gltf, null, 2 );
+                console.log( output );
+                saveString( output, 'scene.gltf' );
+
+            },
+            // called when there is an error in the generation
+            function ( error ) {
+
+                console.log( 'An error happened' );
+
+            },
+            {onlyVisible: true}
+        )
         const link = document.createElement('a');
         document.body.appendChild(link);
         link.style.display = 'none';
@@ -4287,6 +4321,7 @@ export class BodyEditor {
         const partMap:[string, THREE.Vector3][] = []
 
         this.scene.traverse((o) => {
+            console.log('o.name', o.name)
             // head shot
             if(o.name === 'neck'){
                 const position = new THREE.Vector3()
@@ -4382,7 +4417,7 @@ export class BodyEditor {
                 name += '.png'
                 link.download = name;
                 link.href = this.Capture();
-                link.click();
+                // link.click();
                 if (currStep === 350) clearInterval(id);
             }, 200)
         }, 0)
