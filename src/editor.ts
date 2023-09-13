@@ -4285,6 +4285,10 @@ export class BodyEditor {
             // if(IsNeedToRender(o.name)) o.visible = false;
             if(o.name.endsWith('_target') || ['left_foot', 'right_foot', 'left_hand', 'right_hand', 'center'].includes(o.name))
                 o.visible = false;
+            if(o instanceof THREE.Mesh){
+                console.log('materialmaterialmaterialmaterialmaterialmaterialmaterialmaterialmaterial', o, o.material.vertexColors)
+                o.material.vertexColors = true
+            }
         });
         
         console.log('bodybodybodybodybodybody', body)
